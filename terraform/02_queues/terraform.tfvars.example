@@ -1,0 +1,10 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+receive_wait_time_seconds                 = 20
+main_queue_message_retention_seconds      = 345600
+dlq_message_retention_seconds             = 1209600
+transcription_visibility_timeout_seconds  = 900
+notification_visibility_timeout_seconds   = 60
+transcription_max_receive_count           = 3
+notification_max_receive_count            = 5
