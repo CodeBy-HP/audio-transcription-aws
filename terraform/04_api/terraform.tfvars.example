@@ -1,0 +1,24 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+# Set from terraform/01_database outputs
+users_table_name = "audiotrans-dev-users"
+jobs_table_name  = "audiotrans-dev-jobs"
+users_table_arn  = "arn:aws:dynamodb:us-east-1:123456789012:table/audiotrans-dev-users"
+jobs_table_arn   = "arn:aws:dynamodb:us-east-1:123456789012:table/audiotrans-dev-jobs"
+
+# Set from terraform/03_storage outputs
+audio_bucket_name = "audiotrans-dev-audio-123456789012"
+audio_bucket_arn  = "arn:aws:s3:::audiotrans-dev-audio-123456789012"
+
+# Set from Clerk dashboard
+clerk_jwks_url = "https://your-instance.clerk.accounts.dev/.well-known/jwks.json"
+
+# Build/package your Lambda before apply
+lambda_zip_path = "../../backend/api/api_lambda.zip"
+
+lambda_timeout_seconds   = 30
+lambda_memory_mb         = 512
+presigned_expires_seconds = 900
+max_file_size_bytes      = 104857600
+cors_allow_origins       = ["http://localhost:3000"]
