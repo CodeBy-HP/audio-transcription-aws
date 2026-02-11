@@ -1,0 +1,5 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+# For production, set to true.
+enable_deletion_protection = false
