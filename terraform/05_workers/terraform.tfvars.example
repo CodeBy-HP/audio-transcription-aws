@@ -1,0 +1,25 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+# Set from terraform/02_queues outputs
+transcription_queue_url = "https://sqs.us-east-1.amazonaws.com/123456789012/audiotrans-dev-transcription-queue"
+transcription_queue_arn = "arn:aws:sqs:us-east-1:123456789012:audiotrans-dev-transcription-queue"
+notification_queue_url  = "https://sqs.us-east-1.amazonaws.com/123456789012/audiotrans-dev-notification-queue"
+notification_queue_arn  = "arn:aws:sqs:us-east-1:123456789012:audiotrans-dev-notification-queue"
+
+# Set from terraform/03_storage outputs
+audio_bucket_name      = "audiotrans-dev-audio-123456789012"
+audio_bucket_arn       = "arn:aws:s3:::audiotrans-dev-audio-123456789012"
+transcript_bucket_name = "audiotrans-dev-transcripts-123456789012"
+transcript_bucket_arn  = "arn:aws:s3:::audiotrans-dev-transcripts-123456789012"
+
+# Set from terraform/01_database outputs
+jobs_table_name = "audiotrans-dev-jobs"
+jobs_table_arn  = "arn:aws:dynamodb:us-east-1:123456789012:table/audiotrans-dev-jobs"
+
+# Keep 0 until worker image is pushed to ECR.
+desired_count = 0
+
+task_cpu         = 2048
+task_memory      = 4096
+whisper_model_id = "openai/whisper-tiny"
