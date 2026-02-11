@@ -1,0 +1,11 @@
+[project]
+name = "audiotrans-queue-tools"
+version = "0.1.0"
+description = "Queue sanity and seed utilities for audio transcription project."
+requires-python = ">=3.11"
+dependencies = [
+  "boto3>=1.34.0",
+]
+
+[tool.uv]
+package = false
