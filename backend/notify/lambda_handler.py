@@ -1,9 +1,12 @@
 import json
 import os
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 AWS_REGION = os.getenv("AWS_REGION", os.getenv("DEFAULT_AWS_REGION", "us-east-1"))
@@ -12,6 +15,7 @@ USERS_TABLE_NAME = os.getenv("USERS_TABLE_NAME", "")
 JOBS_TABLE_NAME = os.getenv("JOBS_TABLE_NAME", "")
 TRANSCRIPT_BUCKET_NAME = os.getenv("TRANSCRIPT_BUCKET_NAME", "")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 DOWNLOAD_URL_TTL_SECONDS = int(os.getenv("DOWNLOAD_URL_TTL_SECONDS", "86400"))
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
@@ -46,14 +50,68 @@ def build_download_url(transcript_key: str) -> str:
 
 
 def send_email(to_email: str, subject: str, body_text: str) -> None:
-    ses.send_email(
-        Source=SENDER_EMAIL,
-        Destination={"ToAddresses": [to_email]},
-        Message={
-            "Subject": {"Data": subject},
-            "Body": {"Text": {"Data": body_text}},
+    try:
+        ses.send_email(
+            Source=SENDER_EMAIL,
+            Destination={"ToAddresses": [to_email]},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {"Text": {"Data": body_text}},
+            },
+        )
+        return
+    except ClientError as exc:
+        if _should_fallback_to_sendgrid(exc):
+            print(f"SES recipient verification issue; attempting SendGrid fallback for {to_email}")
+            _send_email_sendgrid(to_email, subject, body_text)
+            return
+        raise
+
+
+def _should_fallback_to_sendgrid(exc: ClientError) -> bool:
+    error = exc.response.get("Error", {})
+    code = str(error.get("Code", "")).strip()
+    message = str(error.get("Message", "")).lower()
+    if code != "MessageRejected":
+        return False
+
+    # SES sandbox-style recipient verification failure text patterns.
+    patterns = [
+        "not verified",
+        "identities failed the check",
+        "email address is not verified",
+    ]
+    return any(pattern in message for pattern in patterns)
+
+
+def _send_email_sendgrid(to_email: str, subject: str, body_text: str) -> None:
+    if not SENDGRID_API_KEY:
+        raise RuntimeError("SENDGRID_API_KEY is not configured for fallback email delivery")
+
+    payload = {
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": SENDER_EMAIL},
+        "subject": subject,
+        "content": [{"type": "text/plain", "value": body_text}],
+    }
+    data = json.dumps(payload).encode("utf-8")
+
+    request = urllib.request.Request(
+        url="https://api.sendgrid.com/v3/mail/send",
+        data=data,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {SENDGRID_API_KEY}",
+            "Content-Type": "application/json",
         },
     )
+    try:
+        with urllib.request.urlopen(request) as response:
+            if response.status not in (200, 202):
+                raise RuntimeError(f"SendGrid send failed with status {response.status}")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"SendGrid send failed ({exc.code}): {body}") from exc
 
 
 def handle_completed(clerk_user_id: str, job_id: str, job: dict[str, Any], to_email: str) -> None:
