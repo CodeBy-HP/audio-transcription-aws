@@ -10,6 +10,8 @@ jobs_table_arn   = "arn:aws:dynamodb:us-east-1:123456789012:table/audiotrans-dev
 # Set from terraform/03_storage outputs
 audio_bucket_name = "audiotrans-dev-audio-123456789012"
 audio_bucket_arn  = "arn:aws:s3:::audiotrans-dev-audio-123456789012"
+transcript_bucket_name = "audiotrans-dev-transcripts-123456789012"
+transcript_bucket_arn  = "arn:aws:s3:::audiotrans-dev-transcripts-123456789012"
 
 # Set from Clerk dashboard
 clerk_jwks_url = "https://your-instance.clerk.accounts.dev/.well-known/jwks.json"

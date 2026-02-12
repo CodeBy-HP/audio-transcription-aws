@@ -40,6 +40,16 @@ variable "audio_bucket_arn" {
   type        = string
 }
 
+variable "transcript_bucket_name" {
+  description = "Transcript bucket name from terraform/03_storage output."
+  type        = string
+}
+
+variable "transcript_bucket_arn" {
+  description = "Transcript bucket ARN from terraform/03_storage output."
+  type        = string
+}
+
 variable "clerk_jwks_url" {
   description = "Clerk JWKS URL used by API auth guard."
   type        = string

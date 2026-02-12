@@ -81,6 +81,18 @@ resource "aws_s3_bucket_public_access_block" "transcripts" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_cors_configuration" "audio" {
+  bucket = aws_s3_bucket.audio.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["POST", "GET", "HEAD"]
+    allowed_origins = var.cors_allow_origins
+    expose_headers  = ["ETag", "x-amz-request-id", "x-amz-id-2"]
+    max_age_seconds = 3600
+  }
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "audio" {
   bucket = aws_s3_bucket.audio.id
 

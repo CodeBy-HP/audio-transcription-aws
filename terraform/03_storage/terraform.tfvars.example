@@ -6,3 +6,4 @@ transcription_queue_arn = "arn:aws:sqs:us-east-1:123456789012:audiotrans-dev-tra
 transcription_queue_url = "https://sqs.us-east-1.amazonaws.com/123456789012/audiotrans-dev-transcription-queue"
 
 audio_expiration_days = 30
+cors_allow_origins    = ["http://localhost:3000"]

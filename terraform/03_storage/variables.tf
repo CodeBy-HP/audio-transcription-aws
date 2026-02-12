@@ -25,3 +25,9 @@ variable "audio_expiration_days" {
   type        = number
   default     = 30
 }
+
+variable "cors_allow_origins" {
+  description = "Allowed browser origins for direct audio uploads to S3."
+  type        = list(string)
+  default     = ["http://localhost:3000"]
+}

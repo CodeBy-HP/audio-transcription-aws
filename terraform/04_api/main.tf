@@ -61,6 +61,15 @@ data "aws_iam_policy_document" "api_lambda_access" {
     ]
     resources = ["${var.audio_bucket_arn}/*"]
   }
+
+  statement {
+    sid    = "TranscriptBucketReadAccess"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject"
+    ]
+    resources = ["${var.transcript_bucket_arn}/*"]
+  }
 }
 
 locals {
@@ -101,9 +110,11 @@ resource "aws_lambda_function" "api" {
       USERS_TABLE_NAME          = var.users_table_name
       JOBS_TABLE_NAME           = var.jobs_table_name
       AUDIO_BUCKET_NAME         = var.audio_bucket_name
+      TRANSCRIPT_BUCKET_NAME    = var.transcript_bucket_name
       CLERK_JWKS_URL            = var.clerk_jwks_url
       PRESIGNED_EXPIRES_SECONDS = tostring(var.presigned_expires_seconds)
       MAX_FILE_SIZE_BYTES       = tostring(var.max_file_size_bytes)
+      CORS_ALLOW_ORIGINS        = join(",", var.cors_allow_origins)
     }
   }
 
@@ -116,8 +127,8 @@ resource "aws_apigatewayv2_api" "http" {
 
   cors_configuration {
     allow_origins = var.cors_allow_origins
-    allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_headers = ["authorization", "content-type"]
+    allow_methods = ["*"]
+    allow_headers = ["*"]
     max_age       = 3600
   }
 
@@ -138,9 +149,21 @@ resource "aws_apigatewayv2_route" "proxy" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
 }
 
+resource "aws_apigatewayv2_route" "proxy_options" {
+  api_id    = aws_apigatewayv2_api.http.id
+  route_key = "OPTIONS /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
+}
+
 resource "aws_apigatewayv2_route" "root" {
   api_id    = aws_apigatewayv2_api.http.id
   route_key = "ANY /"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
+}
+
+resource "aws_apigatewayv2_route" "root_options" {
+  api_id    = aws_apigatewayv2_api.http.id
+  route_key = "OPTIONS /"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
 }
 
