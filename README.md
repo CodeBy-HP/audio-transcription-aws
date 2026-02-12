@@ -32,10 +32,9 @@ Core flow:
 ## System Architecture
 
 <div align="center">
-  <!-- I will place the architecture image here -->
-  <!-- Example:
-  <img src="./docs/system-design.png" alt="System Architecture" width="1000" />
-  -->
+
+<img width="1422" height="1484" alt="final diagram" src="https://github.com/user-attachments/assets/0a3e4f87-ed63-4378-ab28-e4e9b32094ad" />
+ 
 </div>
 
 ## Requirements & Targets
