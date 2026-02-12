@@ -1,0 +1,5 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+# Optional: set explicit bucket name, or leave empty for auto-generated name.
+frontend_bucket_name = ""
