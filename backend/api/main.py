@@ -16,17 +16,34 @@ The actual transcription processing is asynchronous and handled by downstream
 queue/worker components after upload completes.
 """
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi_clerk_auth import ClerkConfig, ClerkHTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Audio Transcription API", version="0.1.0")
+
+cors_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.options("/{rest_of_path:path}", include_in_schema=False)
+async def cors_preflight(rest_of_path: str) -> Response:  # noqa: ARG001
+    # Explicit fallback for API Gateway/Lambda preflight path resolution.
+    return Response(status_code=204)
 
 dynamodb = boto3.resource(
     "dynamodb",
@@ -40,6 +57,7 @@ s3_client = boto3.client(
 USERS_TABLE = os.getenv("USERS_TABLE_NAME", "")
 JOBS_TABLE = os.getenv("JOBS_TABLE_NAME", "")
 AUDIO_BUCKET = os.getenv("AUDIO_BUCKET_NAME", "")
+TRANSCRIPT_BUCKET = os.getenv("TRANSCRIPT_BUCKET_NAME", "")
 PRESIGNED_EXPIRES_SECONDS = int(os.getenv("PRESIGNED_EXPIRES_SECONDS", "900"))
 MAX_FILE_SIZE_BYTES = int(os.getenv("MAX_FILE_SIZE_BYTES", str(100 * 1024 * 1024)))
 
@@ -60,6 +78,7 @@ class CreateJobRequest(BaseModel):
     file_size: int = Field(gt=0)
     content_type: str = Field(min_length=1, max_length=120)
     language: str = Field(default="en", min_length=2, max_length=10)
+    email: str = Field(default="", max_length=320)
 
 
 class CreateJobResponse(BaseModel):
@@ -87,6 +106,30 @@ def _to_plain(item: dict[str, Any]) -> dict[str, Any]:
     return dict(item)
 
 
+def _normalize_email(value: str) -> str:
+    return value.strip().lower()
+
+
+def _is_valid_email(value: str) -> bool:
+    # Pragmatic validation for user profile storage; not strict RFC parsing.
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value))
+
+
+def _extract_email_from_claims(claims: dict[str, Any]) -> str:
+    # Clerk token templates may expose email using different claim keys.
+    candidates = [
+        claims.get("email", ""),
+        claims.get("email_address", ""),
+        claims.get("primary_email_address", ""),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, str):
+            email = _normalize_email(candidate)
+            if email and _is_valid_email(email):
+                return email
+    return ""
+
+
 def _assert_db_env_configured() -> None:
     missing = []
     if not USERS_TABLE:
@@ -106,7 +149,7 @@ async def get_current_auth_context(
     claims = creds.decoded
     return {
         "clerk_user_id": claims["sub"],
-        "email": claims.get("email", ""),
+        "email": _extract_email_from_claims(claims),
     }
 
 
@@ -120,21 +163,41 @@ def ensure_user_exists(clerk_user_id: str, email: str = "") -> None:
     _assert_db_env_configured()
     users_table = dynamodb.Table(USERS_TABLE)
     now = _now_iso()
+    normalized_email = _normalize_email(email)
+    has_email = bool(normalized_email) and _is_valid_email(normalized_email)
+    if has_email:
+        users_table.update_item(
+            Key={"clerk_user_id": clerk_user_id},
+            UpdateExpression=(
+                "SET #updated_at = :updated_at, "
+                "#email = :email, "
+                "#created_at = if_not_exists(#created_at, :created_at)"
+            ),
+            ExpressionAttributeNames={
+                "#updated_at": "updated_at",
+                "#email": "email",
+                "#created_at": "created_at",
+            },
+            ExpressionAttributeValues={
+                ":updated_at": now,
+                ":email": normalized_email,
+                ":created_at": now,
+            },
+        )
+        return
+
     users_table.update_item(
         Key={"clerk_user_id": clerk_user_id},
         UpdateExpression=(
             "SET #updated_at = :updated_at, "
-            "#email = if_not_exists(#email, :email), "
             "#created_at = if_not_exists(#created_at, :created_at)"
         ),
         ExpressionAttributeNames={
             "#updated_at": "updated_at",
-            "#email": "email",
             "#created_at": "created_at",
         },
         ExpressionAttributeValues={
             ":updated_at": now,
-            ":email": email,
             ":created_at": now,
         },
     )
@@ -155,7 +218,11 @@ async def create_job(
         raise HTTPException(status_code=500, detail="AUDIO_BUCKET_NAME is not configured")
 
     clerk_user_id = auth_ctx["clerk_user_id"]
-    ensure_user_exists(clerk_user_id, auth_ctx.get("email", ""))
+    provided_email = _normalize_email(payload.email)
+    token_email = _normalize_email(auth_ctx.get("email", ""))
+    # Trust token claim first; fallback to payload only if claim is missing.
+    effective_email = token_email or provided_email
+    ensure_user_exists(clerk_user_id, effective_email)
 
     ext = _extract_extension(payload.filename)
     if ext not in ALLOWED_FILE_TYPES:
@@ -228,6 +295,37 @@ async def get_job_status(
     if not item:
         raise HTTPException(status_code=404, detail="Job not found")
     return _to_plain(item)
+
+
+@app.get("/api/jobs/{job_id}/transcript")
+async def get_job_transcript(
+    job_id: str,
+    clerk_user_id: str = Depends(get_current_user_id),
+) -> dict[str, str]:
+    _assert_db_env_configured()
+    if not TRANSCRIPT_BUCKET:
+        raise HTTPException(status_code=500, detail="TRANSCRIPT_BUCKET_NAME is not configured")
+
+    jobs_table = dynamodb.Table(JOBS_TABLE)
+    response = jobs_table.get_item(Key={"clerk_user_id": clerk_user_id, "job_id": job_id})
+    item = response.get("Item")
+    if not item:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if item.get("status") != "COMPLETED":
+        raise HTTPException(status_code=409, detail="Transcript is not ready yet")
+
+    transcript_key = str(item.get("s3_transcript_key", "")).strip()
+    if not transcript_key:
+        raise HTTPException(status_code=404, detail="Transcript key not found for this job")
+
+    try:
+        transcript_obj = s3_client.get_object(Bucket=TRANSCRIPT_BUCKET, Key=transcript_key)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Transcript object not found") from exc
+
+    body = transcript_obj["Body"].read().decode("utf-8", errors="replace")
+    return {"job_id": job_id, "transcript": body}
 
 
 @app.get("/api/jobs", response_model=JobListResponse)
