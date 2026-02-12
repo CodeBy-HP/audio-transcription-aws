@@ -55,6 +55,13 @@ variable "sender_email" {
   type        = string
 }
 
+variable "sendgrid_api_key" {
+  description = "Optional SendGrid API key used as fallback when SES recipient is not verified."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "lambda_zip_path" {
   description = "Path to packaged notification Lambda zip."
   type        = string

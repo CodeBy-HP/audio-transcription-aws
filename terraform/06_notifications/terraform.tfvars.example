@@ -17,6 +17,7 @@ transcript_bucket_arn  = "arn:aws:s3:::audiotrans-dev-transcripts-123456789012"
 
 # Must be a verified SES identity (especially in sandbox)
 sender_email = "noreply@example.com"
+sendgrid_api_key = ""
 
 lambda_zip_path = "../../backend/notify/notify_lambda.zip"
 lambda_timeout_seconds = 60

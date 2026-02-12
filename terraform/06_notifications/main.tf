@@ -117,6 +117,7 @@ resource "aws_lambda_function" "notification_worker" {
       JOBS_TABLE_NAME         = var.jobs_table_name
       TRANSCRIPT_BUCKET_NAME  = var.transcript_bucket_name
       SENDER_EMAIL            = local.sender_email
+      SENDGRID_API_KEY        = var.sendgrid_api_key
       DOWNLOAD_URL_TTL_SECONDS = tostring(var.download_url_ttl_seconds)
     }
   }
