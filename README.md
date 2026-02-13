@@ -29,6 +29,8 @@ Core flow:
 
 `Client -> API -> Presigned URL -> S3 Upload -> SQS -> Worker -> Transcript -> Notification`
 
+---
+
 ## System Architecture
 
 <div align="center">
@@ -36,6 +38,19 @@ Core flow:
 <img width="1422" height="1484" alt="final diagram" src="https://github.com/user-attachments/assets/0a3e4f87-ed63-4378-ab28-e4e9b32094ad" />
  
 </div>
+
+---
+
+## User Interface
+
+<div align="center">
+
+ <img width="935" height="877" alt="Screenshot 2026-02-13 092513" src="https://github.com/user-attachments/assets/9a01ee51-bceb-452e-87bf-65c73b6a6f8f" />
+<img width="938" height="769" alt="Screenshot 2026-02-13 092650" src="https://github.com/user-attachments/assets/9691db8e-e72a-4bf8-8a38-13241de9944f" />
+
+</div>   
+
+---
 
 ## Requirements & Targets
 
